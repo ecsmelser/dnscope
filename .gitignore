@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Environment secrets
+.env
+
+# VS Code
+.vscode/
+
+# Node (if you add frontend tooling later)
+node_modules/
+
+# OS files
+Thumbs.db

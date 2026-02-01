@@ -27,8 +27,8 @@ class Domain(Base):
     __tablename__ = "domains"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True) #define unique ID
-    domain_name: Mapped[str] = mapped_columnOString, unique=True, nullable=False) #define domain_name column
-    created_at Mapped[datetime] = mapped_column( #define created_at column
+    domain_name: Mapped[str] = mapped_column(String, unique=True, nullable=False) #define domain_name column
+    created_at: Mapped[datetime] = mapped_column( 
         DateTime, default=datetime.utcnow
     )
 
@@ -41,16 +41,17 @@ class DNSRecord(Base):
     __tablename__ = "dns_records"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-        domain_id: Mapped[int] = mapped_column(  #domain_id stores the id of the domain that the record belongs to
-            Integer, ForeignKey("domains.id"), nullable=False #declares that domain_id has to point to a row in "domains" postgres table
+    domain_id: Mapped[int] = mapped_column(  
+        Integer, ForeignKey("domains.id"), nullable=False #declares that domain_id has to point to a row in "domains" postgres table
     )
+    #domain_id stores the id of the domain that the record belongs to
 
     record_type: Mapped[str] = mapped_column(String, nullable=False) #stores recordtype (A, CNAME, TXT, MX)
     name: Mapped[str] = mapped_column(String, nullable=False) #stores the name of the record
     value: Mapped[str] = mapped_column(String, nullable=False) #stores the value of the record (a -> 203.0.113.10, cname -> example-hosting.com)
     ttl: Mapped[int] = mapped_column(Integer) #stores record TTL
 
-    created_at Mapped[datetime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow
     )
 

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from app.db import engine
 from app import models
+from app.routes import router
 
 app = FastAPI(title="DNScope")
 
@@ -9,6 +10,11 @@ app = FastAPI(title="DNScope")
 #later on, I'd likely use migrations to ensure that schema changes are tracked, for now, we're doing this to simplify development and focus 
 #more on actually validating the data model and logic
 models.Base.metadata.create_all(bind=engine)
+
+
+app.include_router(router)
+
+
 
 @app.get("/health")
 def health():

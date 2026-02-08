@@ -43,3 +43,22 @@ def seed_data():
 
     finally:
         db.close()
+
+@router.get("/domains")
+def get_domains():
+    db = SessionLocal()
+
+    try:
+        domains = db.query(Domain).all()
+
+        return [
+            {
+                "id": domain.id,
+                "domain_name": domain.domain_name,
+                "created_at": domain.created_at,
+            }
+            for domain in domains
+        ]
+
+    finally:
+        db.close()

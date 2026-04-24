@@ -113,78 +113,60 @@ def scan_domain(domain_id: int):
     db = SessionLocal()
 
     try:
-        # look up the domain first
+        # look up the domain row first
         domain = db.query(Domain).filter(Domain.id == domain_id).first()
 
-        # if the domain does not exist, return a 404 error
+        # return a 404 if the domain does not exist
         if not domain:
             raise HTTPException(status_code=404, detail="domain not found")
 
-        # retrieve all dns records associated with this domain
-        records = db.query(DNSRecord).filter(DNSRecord.domain_id == domain_id).all()
+        # build the nuclei target from the stored domain name
+        nuclei_target = f"https://{domain.domain_name}"
 
-        # if the domain exists but has no records, return a clean response
-        if not records:
-            return {
-                "message": "no dns records found for this domain",
-                "domain_id": domain_id,
-                "scanned_records": 0,
-                "findings_saved": 0
-            }
+        # run nuclei against the full url
+        nuclei_findings = run_nuclei_scan(nuclei_target)
 
-        # track how many records scanned
-        scanned_records = 0
-
-        # track how many findings were successfully saved
-        findings_saved = 0
-
-        # loop through all records for this domain
-        for record in records:
-            # these are the most relevant for subdomain takeover scenarios
-            if record.record_type != "CNAME":
-                continue
-
-            scanned_records += 1
-
-            # run nuclei against the record's hostname, not its target value
-            #v.2 updated to append https:// before the record to format for Nuclei scan
-            nuclei_target = f"https://{record.name}"
-            nuclei_findings = run_nuclei_scan(nuclei_target)
-
-            # for every finding nuclei returns, create a scanresult row
-            for finding in nuclei_findings:
-                scan_result = ScanResult(
-                    dns_record_id=record.id,
-
-                    # template-id is the nuclei template identifier
-                    # we use it here as a rough risk type label
-                    risk_type=finding.get("template-id", "unknown"),
-
-                    # pull severity out of the nested "info" object if it exists
-                    severity=finding.get("info", {}).get("severity", "unknown"),
-
-                    # track that nuclei was the validation source
-                    validation_source="nuclei",
-
-                    # store the full finding as json text for now
-                    evidence=json_safe_dump(finding)
-                )
-
-                db.add(scan_result)
-                findings_saved += 1
-
-        # save all created scan results in one transaction
-        db.commit()
-
+        # return the matches in a compact readable format
         return {
             "message": "scan completed",
             "domain_id": domain_id,
             "domain_name": domain.domain_name,
-            "scanned_records": scanned_records,
-            "findings_saved": findings_saved
+            "nuclei_target": nuclei_target,
+            "findings_returned": len(nuclei_findings),
+            "nuclei_matches": [compact_finding(finding) for finding in nuclei_findings]
         }
 
     finally:
+        # always close the db session
+        db.close()
+
+# test get to see results
+
+@router.get("/scan-results")
+def get_scan_results():
+    # return all stored scan results from the database
+    db = SessionLocal()
+
+    try:
+        # query every row from the scan_results table
+        results = db.query(ScanResult).all()
+
+        # convert the orm objects into json-friendly dictionaries
+        return [
+            {
+                "id": result.id,
+                "dns_record_id": result.dns_record_id,
+                "risk_type": result.risk_type,
+                "severity": result.severity,
+                "validation_source": result.validation_source,
+                "evidence": result.evidence,
+                "detected_at": result.detected_at,
+            }
+            for result in results
+        ]
+
+    finally:
+        # always close the db session
         db.close()
 
 
@@ -205,3 +187,16 @@ def json_safe_dump(data):
         # fallback: if json conversion fails for any reason,
         # store a string version instead of crashing
         return str(data)
+
+
+def compact_finding(finding):
+    # return a cleaner, smaller version of a nuclei finding
+    return {
+        "template_id": finding.get("template-id"),
+        "name": finding.get("info", {}).get("name"),
+        "severity": finding.get("info", {}).get("severity"),
+        "type": finding.get("type"),
+        "matched_at": finding.get("matched-at"),
+        "matcher": finding.get("matcher-name"),
+        "extracted": finding.get("extracted-results"),
+    }

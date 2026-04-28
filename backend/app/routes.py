@@ -1,7 +1,11 @@
+from datetime import datetime
+
 from fastapi import APIRouter, HTTPException
+
 from app.db import SessionLocal
-from app.models import Domain, DNSRecord, ScanResult
+from app.models import DNSRecord, Domain, ScanResult, ScanRun
 from app.services.nuclei_runner import run_nuclei_scan
+
 
 router = APIRouter()
 
@@ -102,12 +106,13 @@ def seed_data():
 @router.post("/scan/domain/{domain_id}")
 def scan_domain(domain_id: int):
     """
-    runs nuclei scans directly against the stored domain url
-    and stores findings in the scan_results table
+    runs a nuclei scan against the stored domain url,
+    records the scan run, and stores each finding in the scan_results table
 
     why this exists:
     - this is the core monitoring loop of dnscope
     - it connects stored domains to automated validation
+    - it creates a historical scan record before saving findings
     - it persists findings so they can later be queried and shown to users
     """
     db = SessionLocal()
@@ -123,6 +128,21 @@ def scan_domain(domain_id: int):
         # build the nuclei target from the stored domain name
         nuclei_target = f"https://{domain.domain_name}"
 
+        # create a scan run before nuclei starts
+        # this gives dnscope a durable record that a scan was attempted
+        scan_run = ScanRun(
+            domain_id=domain.id,
+            target=nuclei_target,
+            scanner="nuclei",
+            status="running",
+        )
+
+        # commit now so postgres generates a scan_run id
+        # scan results will use this id as their parent
+        db.add(scan_run)
+        db.commit()
+        db.refresh(scan_run)
+
         # run nuclei against the full url
         nuclei_findings = run_nuclei_scan(nuclei_target)
 
@@ -132,17 +152,23 @@ def scan_domain(domain_id: int):
         # save each nuclei finding into the scan_results table
         for finding in nuclei_findings:
             scan_result = ScanResult(
+                scan_run_id=scan_run.id,
                 dns_record_id=None,
                 risk_type=finding.get("template-id", "unknown"),
                 severity=finding.get("info", {}).get("severity", "unknown"),
                 validation_source="nuclei",
-                evidence=json_safe_dump(finding)
+                evidence=json_safe_dump(finding),
             )
 
             db.add(scan_result)
             findings_saved += 1
 
-        # commit all saved scan results to the database
+        # mark the scan run as completed after all findings are saved
+        scan_run.status = "completed"
+        scan_run.findings_count = findings_saved
+        scan_run.completed_at = datetime.utcnow()
+
+        # commit the scan results and final scan run state together
         db.commit()
 
         # return the matches in a compact readable format
@@ -150,15 +176,17 @@ def scan_domain(domain_id: int):
             "message": "scan completed",
             "domain_id": domain_id,
             "domain_name": domain.domain_name,
+            "scan_run_id": scan_run.id,
             "nuclei_target": nuclei_target,
             "findings_returned": len(nuclei_findings),
             "findings_saved": findings_saved,
-            "nuclei_matches": [compact_finding(finding) for finding in nuclei_findings]
+            "nuclei_matches": [compact_finding(finding) for finding in nuclei_findings],
         }
 
     finally:
         # always close the db session
         db.close()
+
 
 # test get to see results
 
@@ -175,6 +203,7 @@ def get_scan_results():
         return [
             {
                 "id": result.id,
+                "scan_run_id": result.scan_run_id,
                 "dns_record_id": result.dns_record_id,
                 "risk_type": result.risk_type,
                 "severity": result.severity,
@@ -188,6 +217,81 @@ def get_scan_results():
     finally:
         # always close the db session
         db.close()
+
+
+@router.get("/scan-runs")
+def get_scan_runs():
+    # return all scan runs, newest first
+    db = SessionLocal()
+
+    try:
+        # query every scan run so the dashboard can show scan history
+        scan_runs = db.query(ScanRun).order_by(ScanRun.started_at.desc()).all()
+
+        # convert orm objects into json-friendly dictionaries
+        return [
+            {
+                "id": scan_run.id,
+                "domain_id": scan_run.domain_id,
+                "target": scan_run.target,
+                "scanner": scan_run.scanner,
+                "status": scan_run.status,
+                "findings_count": scan_run.findings_count,
+                "started_at": scan_run.started_at,
+                "completed_at": scan_run.completed_at,
+            }
+            for scan_run in scan_runs
+        ]
+
+    finally:
+        # always close the db session
+        db.close()
+
+
+@router.get("/scan-runs/{scan_run_id}")
+def get_scan_run(scan_run_id: int):
+    # return one scan run and all findings produced by that scan
+    db = SessionLocal()
+
+    try:
+        # look up the scan run by id
+        scan_run = db.query(ScanRun).filter(ScanRun.id == scan_run_id).first()
+
+        # return a 404 if the scan run does not exist
+        if not scan_run:
+            raise HTTPException(status_code=404, detail="scan run not found")
+
+        # return scan metadata plus its related findings
+        return {
+            "id": scan_run.id,
+            "domain_id": scan_run.domain_id,
+            "target": scan_run.target,
+            "scanner": scan_run.scanner,
+            "status": scan_run.status,
+            "findings_count": scan_run.findings_count,
+            "started_at": scan_run.started_at,
+            "completed_at": scan_run.completed_at,
+            "findings": [
+                {
+                    "id": result.id,
+                    "dns_record_id": result.dns_record_id,
+                    "risk_type": result.risk_type,
+                    "severity": result.severity,
+                    "validation_source": result.validation_source,
+                    "evidence": result.evidence,
+                    "detected_at": result.detected_at,
+                }
+                for result in scan_run.scan_results
+            ],
+        }
+
+    finally:
+        # always close the db session
+        db.close()
+
+
+
+
 
 
 def json_safe_dump(data):

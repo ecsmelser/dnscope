@@ -64,12 +64,13 @@ class ScanResult(Base):
     __tablename__ = "scan_results"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    dns_record_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("dns_records.id"), nullable=False #this ties a scan result to a specific DNS record
+    dns_record_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("dns_records.id"), nullable=True #this ties a scan result to a specific DNS record
     )
 
     risk_type: Mapped[str] = mapped_column(String, nullable=False) #label for what the issue is (dangling_cname, takeover_possible, etc.)
     severity: Mapped[str] = mapped_column(String, nullable=False) #stores severity level
+    validation_source: Mapped[str] = mapped_column(String, nullable=False) #stores where the validation result came from, such as nuclei
 
     evidence: Mapped[str] = mapped_column(Text) #evidence can be long so we store in Text, JSON from nuclei, error messages, or other vulnerability fingerprints
     detected_at: Mapped[datetime] = mapped_column( #this is the timestamp of when an issue was detected

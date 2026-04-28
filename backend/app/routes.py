@@ -102,12 +102,12 @@ def seed_data():
 @router.post("/scan/domain/{domain_id}")
 def scan_domain(domain_id: int):
     """
-    runs nuclei scans against all relevant dns records for a given domain
+    runs nuclei scans directly against the stored domain url
     and stores findings in the scan_results table
 
     why this exists:
     - this is the core monitoring loop of dnscope
-    - it connects stored dns records to automated validation
+    - it connects stored domains to automated validation
     - it persists findings so they can later be queried and shown to users
     """
     db = SessionLocal()
@@ -126,6 +126,25 @@ def scan_domain(domain_id: int):
         # run nuclei against the full url
         nuclei_findings = run_nuclei_scan(nuclei_target)
 
+        # keep track of how many findings get saved
+        findings_saved = 0
+
+        # save each nuclei finding into the scan_results table
+        for finding in nuclei_findings:
+            scan_result = ScanResult(
+                dns_record_id=None,
+                risk_type=finding.get("template-id", "unknown"),
+                severity=finding.get("info", {}).get("severity", "unknown"),
+                validation_source="nuclei",
+                evidence=json_safe_dump(finding)
+            )
+
+            db.add(scan_result)
+            findings_saved += 1
+
+        # commit all saved scan results to the database
+        db.commit()
+
         # return the matches in a compact readable format
         return {
             "message": "scan completed",
@@ -133,6 +152,7 @@ def scan_domain(domain_id: int):
             "domain_name": domain.domain_name,
             "nuclei_target": nuclei_target,
             "findings_returned": len(nuclei_findings),
+            "findings_saved": findings_saved,
             "nuclei_matches": [compact_finding(finding) for finding in nuclei_findings]
         }
 

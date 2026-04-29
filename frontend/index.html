@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DNScope Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">dnscope</p>
+          <h1>Security monitoring</h1>
+        </div>
+        <button id="refreshButton" class="icon-button" title="refresh dashboard" aria-label="refresh dashboard">
+          ↻
+        </button>
+      </section>
+
+      <section class="summary-grid" aria-label="dashboard summary">
+        <article class="metric">
+          <span class="metric-label">domains</span>
+          <strong id="totalDomains">0</strong>
+        </article>
+        <article class="metric">
+          <span class="metric-label">scan runs</span>
+          <strong id="totalScanRuns">0</strong>
+        </article>
+        <article class="metric">
+          <span class="metric-label">findings</span>
+          <strong id="totalFindings">0</strong>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Add domain</h2>
+        </div>
+        <form id="domainForm" class="domain-form">
+          <input id="domainInput" type="text" placeholder="example.com" autocomplete="off" />
+          <button type="submit">Add</button>
+        </form>
+        <p id="formMessage" class="message"></p>
+      </section>
+
+      <section class="content-grid">
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Tracked domains</h2>
+          </div>
+          <div id="domainList" class="domain-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Recent scans</h2>
+          </div>
+          <div id="recentScans" class="scan-list"></div>
+        </section>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Severity totals</h2>
+        </div>
+        <div id="severityTotals" class="severity-grid"></div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

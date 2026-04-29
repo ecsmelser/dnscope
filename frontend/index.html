@@ -6,6 +6,42 @@
     <title>DNScope Dashboard</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
+  <section id="domainDetailPanel" class="panel detail-panel">
+  <div class="panel-header">
+    <div>
+      <h2 id="detailTitle">Domain detail</h2>
+      <p id="detailSubtitle" class="panel-subtitle">select a domain to review scan history and changes</p>
+    </div>
+  </div>
+
+  <div class="detail-grid">
+    <section>
+      <h3>Latest scan</h3>
+      <div id="latestScanDetail" class="detail-block"></div>
+    </section>
+
+    <section>
+      <h3>Scan diff</h3>
+      <div id="scanDiffDetail" class="detail-block"></div>
+    </section>
+  </div>
+
+  <section>
+    <h3>Scan history</h3>
+    <div id="scanHistoryDetail" class="scan-list"></div>
+  </section>
+</section>
+
+<section id="scanDetailPanel" class="panel detail-panel">
+  <div class="panel-header">
+    <div>
+      <h2 id="scanDetailTitle">Scan detail</h2>
+      <p id="scanDetailSubtitle" class="panel-subtitle">select a scan to review findings</p>
+    </div>
+  </div>
+
+  <div id="scanFindingList" class="finding-list"></div>
+</section>
   <body>
     <main class="shell">
       <section class="topbar">

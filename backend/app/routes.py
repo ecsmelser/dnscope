@@ -157,8 +157,15 @@ def scan_domain(domain_id: int):
                 risk_type=finding.get("template-id", "unknown"),
                 severity=finding.get("info", {}).get("severity", "unknown"),
                 validation_source="nuclei",
+                template_id=finding.get("template-id"),
+                finding_name=finding.get("info", {}).get("name"),
+                finding_type=finding.get("type"),
+                matched_at=finding.get("matched-at"),
+                matcher_name=finding.get("matcher-name"),
+                extracted_results=json_safe_dump(finding.get("extracted-results")),
                 evidence=json_safe_dump(finding),
             )
+
 
             db.add(scan_result)
             findings_saved += 1
@@ -210,6 +217,12 @@ def get_scan_results():
                 "validation_source": result.validation_source,
                 "evidence": result.evidence,
                 "detected_at": result.detected_at,
+                "template_id": result.template_id,
+                "finding_name": result.finding_name,
+                "finding_type": result.finding_type,
+                "matched_at": result.matched_at,
+                "matcher_name": result.matcher_name,
+                "extracted_results": result.extracted_results,
             }
             for result in results
         ]
@@ -280,6 +293,13 @@ def get_scan_run(scan_run_id: int):
                     "validation_source": result.validation_source,
                     "evidence": result.evidence,
                     "detected_at": result.detected_at,
+                    "template_id": result.template_id,
+                    "finding_name": result.finding_name,
+                    "finding_type": result.finding_type,
+                    "matched_at": result.matched_at,
+                    "matcher_name": result.matcher_name,
+                    "extracted_results": result.extracted_results,
+
                 }
                 for result in scan_run.scan_results
             ],

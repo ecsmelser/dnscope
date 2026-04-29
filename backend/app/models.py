@@ -159,6 +159,25 @@ class ScanResult(Base):
     # store where the validation result came from, such as nuclei
     validation_source: Mapped[str] = mapped_column(String, nullable=False)
 
+    # store the nuclei template id separately so dashboards do not need to parse evidence
+    template_id: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # store the readable finding name from nuclei
+    finding_name: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # store the nuclei result type, such as dns, http, or ssl
+    finding_type: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # store the exact target or value nuclei matched on
+    matched_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # store the matcher name when nuclei provides one
+    matcher_name: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # store extracted results as text because nuclei may return a list
+    extracted_results: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
     # store raw evidence as text
     # nuclei findings are json dictionaries, so routes.py serializes them first
     evidence: Mapped[str] = mapped_column(Text)

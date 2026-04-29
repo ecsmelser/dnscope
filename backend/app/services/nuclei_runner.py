@@ -33,7 +33,11 @@ def run_nuclei_scan(target: str) -> Dict:
 
         findings: List[Dict] = []
 
-        for line in result.stdout.splitlines():
+        # nuclei should return json lines on stdout, but stdout can be empty or none on failure
+        stdout = result.stdout or ""
+        stderr = result.stderr or ""
+
+        for line in stdout.splitlines():
             try:
                 findings.append(json.loads(line))
             except json.JSONDecodeError:
@@ -42,16 +46,16 @@ def run_nuclei_scan(target: str) -> Dict:
         return {
             "findings": findings,
             "returncode": result.returncode,
-            "stderr": result.stderr,
+            "stderr": stderr,
             "timed_out": False,
             "command": command,
         }
 
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as e:
         return {
             "findings": [],
             "returncode": None,
-            "stderr": f"nuclei timed out after {timeout_seconds} seconds",
+            "stderr": e.stderr or f"nuclei timed out after {timeout_seconds} seconds",
             "timed_out": True,
             "command": command,
         }

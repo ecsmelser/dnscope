@@ -119,6 +119,10 @@ function renderRecentScans(summary) {
 }
 
 function renderScanRow(scan) {
+  const errorHtml = scan.status === "failed" && scan.error_message
+    ? `<div class="scan-error">${escapeHtml(scan.error_message)}</div>`
+    : "";
+
   return `
     <article class="scan-row">
       <div class="scan-title">${scan.target}</div>
@@ -128,9 +132,11 @@ function renderScanRow(scan) {
         <span class="badge">${scan.findings_count} findings</span>
         <button class="secondary-button" data-view-scan-id="${scan.id}">View findings</button>
       </div>
+      ${errorHtml}
     </article>
   `;
 }
+
 
 function renderLatestScan(data) {
   const latestScan = data.latest_scan;
@@ -140,6 +146,10 @@ function renderLatestScan(data) {
     return;
   }
 
+  const errorHtml = latestScan.status === "failed" && latestScan.error_message
+    ? `<div class="scan-error">${escapeHtml(latestScan.error_message)}</div>`
+    : "";
+
   els.latestScanDetail.innerHTML = `
     <div class="scan-title">${latestScan.target}</div>
     <div class="scan-meta">scan #${latestScan.id} - ${formatDate(latestScan.started_at)}</div>
@@ -148,8 +158,10 @@ function renderLatestScan(data) {
       <span class="badge">${latestScan.findings_count} findings</span>
       <button class="secondary-button" data-view-scan-id="${latestScan.id}">View findings</button>
     </div>
+    ${errorHtml}
   `;
 }
+
 
 function renderScanDiff(diff) {
   els.scanDiffDetail.innerHTML = `

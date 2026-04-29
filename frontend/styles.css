@@ -407,3 +407,14 @@ h2 {
     width: 100%;
   }
 }
+
+.scan-error {
+  margin-top: 10px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fff1f0;
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 1.4;
+}

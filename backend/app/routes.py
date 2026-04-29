@@ -352,6 +352,81 @@ def get_domain_scan_runs(domain_id: int):
         db.close()
 
 
+@router.get("/domains/{domain_id}/latest-scan")
+def get_latest_domain_scan(domain_id: int):
+    # return the newest scan for one domain with summary counts
+    db = SessionLocal()
+
+    try:
+        # look up the domain first so we can return a clear 404 if needed
+        domain = db.query(Domain).filter(Domain.id == domain_id).first()
+
+        if not domain:
+            raise HTTPException(status_code=404, detail="domain not found")
+
+        # get the newest scan run for this domain
+        latest_scan = (
+            db.query(ScanRun)
+            .filter(ScanRun.domain_id == domain_id)
+            .order_by(ScanRun.started_at.desc())
+            .first()
+        )
+
+        # return a useful empty state if the domain has never been scanned
+        if not latest_scan:
+            return {
+                "domain_id": domain.id,
+                "domain_name": domain.domain_name,
+                "latest_scan": None,
+                "severity_counts": {
+                    "info": 0,
+                    "low": 0,
+                    "medium": 0,
+                    "high": 0,
+                    "critical": 0,
+                    "unknown": 0,
+                },
+            }
+
+        # start with known severity buckets so the dashboard gets stable keys
+        severity_counts = {
+            "info": 0,
+            "low": 0,
+            "medium": 0,
+            "high": 0,
+            "critical": 0,
+            "unknown": 0,
+        }
+
+        # count findings by severity for this scan run
+        for result in latest_scan.scan_results:
+            severity = result.severity or "unknown"
+
+            if severity not in severity_counts:
+                severity_counts[severity] = 0
+
+            severity_counts[severity] += 1
+
+        return {
+            "domain_id": domain.id,
+            "domain_name": domain.domain_name,
+            "latest_scan": {
+                "id": latest_scan.id,
+                "target": latest_scan.target,
+                "scanner": latest_scan.scanner,
+                "status": latest_scan.status,
+                "findings_count": latest_scan.findings_count,
+                "started_at": latest_scan.started_at,
+                "completed_at": latest_scan.completed_at,
+            },
+            "severity_counts": severity_counts,
+        }
+
+    finally:
+        # always close the db session
+        db.close()
+
+
 
 
 def json_safe_dump(data):

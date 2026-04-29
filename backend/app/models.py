@@ -109,6 +109,9 @@ class ScanRun(Base):
     # store scan state, such as running, completed, or failed
     status: Mapped[str] = mapped_column(String, nullable=False, default="running")
 
+    # store a short error message when a scan fails
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # store how many findings were saved for this scan run
     findings_count: Mapped[int] = mapped_column(Integer, default=0)
 

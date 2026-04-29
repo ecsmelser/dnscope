@@ -1,59 +1,66 @@
-import subprocess
 import json
-from typing import List, Dict
+import os
+import subprocess
+from typing import Dict, List
 
 
-def run_nuclei_scan(target: str) -> List[Dict]:
+def run_nuclei_scan(target: str) -> Dict:
     """
-    runs nuclei against a single target and returns any findings as
-    a list of python dictionaries.
-
-    example target:
-        app.example.com
+    runs nuclei against a single target and returns scan metadata plus findings
 
     why this exists:
     - dnscope should not run nuclei directly inside routes
-    - this keeps scanning logic isolated in a service layer
-    - routes can call this function and just work with the returned data
+    - this keeps scanner execution isolated in a service layer
+    - routes can decide how to store successful or failed scan runs
     """
+    nuclei_path = os.getenv("NUCLEI_PATH", "nuclei")
+    timeout_seconds = int(os.getenv("NUCLEI_TIMEOUT_SECONDS", "120"))
 
-    # build the terminal command that will run nuclei
-    # -target tells nuclei what hostname to scan
-    # -json tells nuclei to return machine-readable output
     command = [
-        "nuclei",
+        nuclei_path,
         "-target", target,
-        "-j"
+        "-j",
     ]
 
     try:
-        # run the command in the operating system shell
-        # capture_output=True captures stdout/stderr so python can read it
-        # text=True returns output as strings instead of bytes
-        # check=False means python will not crash automatically if nuclei returns a non-zero code
         result = subprocess.run(
             command,
             capture_output=True,
             text=True,
-            check=False
+            check=False,
+            timeout=timeout_seconds,
         )
 
-        # this list will hold all parsed nuclei findings
-        findings = []
+        findings: List[Dict] = []
 
-        # nuclei prints one json object per line when -json is used,
-        # so we split the output into lines and parse each one
         for line in result.stdout.splitlines():
             try:
                 findings.append(json.loads(line))
             except json.JSONDecodeError:
-                # if a line is not valid json, skip it rather than crashing
                 continue
 
-        return findings
+        return {
+            "findings": findings,
+            "returncode": result.returncode,
+            "stderr": result.stderr,
+            "timed_out": False,
+            "command": command,
+        }
+
+    except subprocess.TimeoutExpired:
+        return {
+            "findings": [],
+            "returncode": None,
+            "stderr": f"nuclei timed out after {timeout_seconds} seconds",
+            "timed_out": True,
+            "command": command,
+        }
 
     except Exception as e:
-        # if something goes wrong when trying to run nuclei itself,
-        # print an error and return an empty list so the app does not crash
-        print(f"error running nuclei for target {target}: {e}")
-        return []
+        return {
+            "findings": [],
+            "returncode": None,
+            "stderr": str(e),
+            "timed_out": False,
+            "command": command,
+        }

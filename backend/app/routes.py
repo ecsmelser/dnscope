@@ -310,6 +310,46 @@ def get_scan_run(scan_run_id: int):
         db.close()
 
 
+@router.get("/domains/{domain_id}/scan-runs")
+def get_domain_scan_runs(domain_id: int):
+    # return scan history for one domain, newest first
+    db = SessionLocal()
+
+    try:
+        # look up the domain first so we can return a clear 404 if needed
+        domain = db.query(Domain).filter(Domain.id == domain_id).first()
+
+        if not domain:
+            raise HTTPException(status_code=404, detail="domain not found")
+
+        # query scan runs for this domain only
+        scan_runs = (
+            db.query(ScanRun)
+            .filter(ScanRun.domain_id == domain_id)
+            .order_by(ScanRun.started_at.desc())
+            .all()
+        )
+
+        return {
+            "domain_id": domain.id,
+            "domain_name": domain.domain_name,
+            "scan_runs": [
+                {
+                    "id": scan_run.id,
+                    "target": scan_run.target,
+                    "scanner": scan_run.scanner,
+                    "status": scan_run.status,
+                    "findings_count": scan_run.findings_count,
+                    "started_at": scan_run.started_at,
+                    "completed_at": scan_run.completed_at,
+                }
+                for scan_run in scan_runs
+            ],
+        }
+
+    finally:
+        # always close the db session
+        db.close()
 
 
 

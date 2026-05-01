@@ -2,6 +2,8 @@ const API_BASE = "http://127.0.0.1:8000";
 
 let selectedDomainId = null;
 let selectedScanRunId = null;
+let currentScanFindings = [];
+
 
 const els = {
   totalDomains: document.querySelector("#totalDomains"),
@@ -24,6 +26,9 @@ const els = {
   scanDetailTitle: document.querySelector("#scanDetailTitle"),
   scanDetailSubtitle: document.querySelector("#scanDetailSubtitle"),
   scanFindingList: document.querySelector("#scanFindingList"),
+  findingSearchInput: document.querySelector("#findingSearchInput"),
+  severityFilterSelect: document.querySelector("#severityFilterSelect"),
+  hideInfoCheckbox: document.querySelector("#hideInfoCheckbox"),
 };
 
 async function api(path, options = {}) {
@@ -199,34 +204,84 @@ function renderScanDetail(scanRun) {
   els.scanDetailTitle.textContent = `Scan #${scanRun.id}`;
   els.scanDetailSubtitle.textContent = `${scanRun.target} - ${scanRun.status} - ${formatDate(scanRun.started_at)}`;
 
-  const findings = scanRun.findings || [];
+  currentScanFindings = scanRun.findings || [];
 
-  if (!findings.length) {
-    els.scanFindingList.innerHTML = `<p class="empty">this scan did not save any findings.</p>`;
+  renderFilteredFindings();
+}
+
+function renderFilteredFindings() {
+  const searchText = els.findingSearchInput.value.trim().toLowerCase();
+  const selectedSeverity = els.severityFilterSelect.value;
+  const hideInfo = els.hideInfoCheckbox.checked;
+
+  const filteredFindings = currentScanFindings.filter((finding) => {
+    const severity = finding.severity || "unknown";
+
+    if (hideInfo && severity === "info") {
+      return false;
+    }
+
+    if (selectedSeverity !== "all" && severity !== selectedSeverity) {
+      return false;
+    }
+
+    if (!searchText) {
+      return true;
+    }
+
+    return findingMatchesSearch(finding, searchText);
+  });
+
+  if (!currentScanFindings.length) {
+    els.scanFindingList.innerHTML = `<p class="empty">select a scan to review findings.</p>`;
     return;
   }
 
-  els.scanFindingList.innerHTML = findings
-    .map((finding) => {
-      const title = finding.finding_name || finding.template_id || finding.risk_type || "unknown finding";
-      const target = finding.matched_at || "unknown target";
+  if (!filteredFindings.length) {
+    els.scanFindingList.innerHTML = `<p class="empty">no findings match the current filters.</p>`;
+    return;
+  }
 
-      return `
-        <article class="finding-row">
-          <div class="finding-row-title">${title}</div>
-          <div class="scan-meta">${finding.severity} - ${target}</div>
-          <div class="badge-row">
-            <span class="badge">${finding.template_id || finding.risk_type || "unknown"}</span>
-            <span class="badge">${finding.finding_type || "unknown type"}</span>
-          </div>
-          <details class="evidence">
-            <summary>raw evidence</summary>
-            <pre>${escapeHtml(finding.evidence || "")}</pre>
-          </details>
-        </article>
-      `;
-    })
+
+  els.scanFindingList.innerHTML = filteredFindings
+    .map((finding) => renderFindingRow(finding))
     .join("");
+}
+
+function findingMatchesSearch(finding, searchText) {
+  const searchableText = [
+    finding.finding_name,
+    finding.template_id,
+    finding.risk_type,
+    finding.matched_at,
+    finding.finding_type,
+    finding.matcher_name,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return searchableText.includes(searchText);
+}
+
+function renderFindingRow(finding) {
+  const title = finding.finding_name || finding.template_id || finding.risk_type || "unknown finding";
+  const target = finding.matched_at || "unknown target";
+
+  return `
+    <article class="finding-row">
+      <div class="finding-row-title">${title}</div>
+      <div class="scan-meta">${finding.severity} - ${target}</div>
+      <div class="badge-row">
+        <span class="badge">${finding.template_id || finding.risk_type || "unknown"}</span>
+        <span class="badge">${finding.finding_type || "unknown type"}</span>
+      </div>
+      <details class="evidence">
+        <summary>raw evidence</summary>
+        <pre>${escapeHtml(finding.evidence || "")}</pre>
+      </details>
+    </article>
+  `;
 }
 
 function escapeHtml(value) {
@@ -356,6 +411,10 @@ async function scanDomain(domainId) {
 
 els.domainForm.addEventListener("submit", createDomain);
 els.refreshButton.addEventListener("click", loadDashboard);
+els.findingSearchInput.addEventListener("input", renderFilteredFindings);
+els.severityFilterSelect.addEventListener("change", renderFilteredFindings);
+els.hideInfoCheckbox.addEventListener("change", renderFilteredFindings);
+
 
 document.addEventListener("click", (event) => {
   const scanButton = event.target.closest("[data-scan-domain-id]");

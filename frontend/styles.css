@@ -418,3 +418,43 @@ h2 {
   font-size: 13px;
   line-height: 1.4;
 }
+
+
+.filter-bar {
+  display: grid;
+  grid-template-columns: 1fr 180px auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.filter-bar input,
+.filter-bar select {
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #fff;
+  color: var(--text);
+}
+
+.checkbox-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  color: var(--muted);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.checkbox-filter input {
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 760px) {
+  .filter-bar {
+    grid-template-columns: 1fr;
+  }
+}

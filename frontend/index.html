@@ -101,6 +101,25 @@
           </div>
         </div>
 
+        <div class="filter-bar">
+            <input id="findingSearchInput" type="text" placeholder="search findings" autocomplete="off" />
+            <select id="severityFilterSelect" aria-label="filter findings by severity">
+                <option value="all">all severities</option>
+                <option value="info">info</option>
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+                <option value="critical">critical</option>
+                <option value="unknown">unknown</option>
+            </select>
+            <label class="checkbox-filter">
+                <input id="hideInfoCheckbox" type="checkbox" />
+                hide info
+            </label>
+        </div>
+
+
+
         <div id="scanFindingList" class="finding-list"></div>
       </section>
     </main>

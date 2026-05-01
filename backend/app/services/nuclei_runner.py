@@ -46,10 +46,13 @@ def run_nuclei_scan(target: str) -> Dict:
         return {
             "findings": findings,
             "returncode": result.returncode,
+            "stdout_preview": stdout[:1000],
             "stderr": stderr,
+            "stderr_preview": stderr[:1000],
             "timed_out": False,
             "command": command,
         }
+
 
     except subprocess.TimeoutExpired as e:
         return {

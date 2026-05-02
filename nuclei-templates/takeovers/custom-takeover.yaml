@@ -1,0 +1,57 @@
+id: custom-takeover
+
+info:
+  name: Custom Takeover
+  author: ethan
+  severity: medium
+  description: flags a url for review when it appears to return disconnected, unclaimed, or missing service language
+  metadata:
+    max-request: 1
+  tags: dnscope,takeover,review,misconfig,http
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+
+    redirects: true
+    max-redirects: 3
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - Host != ip
+
+      - type: word
+        part: body
+        words:
+          - "this resource is unclaimed"
+          - "resource is unclaimed"
+          - "no such app"
+          - "project not found"
+          - "site not found"
+          - "resource not found"
+          - "service unavailable"
+          - "there is no site here"
+          - "deployment not found"
+          - "unknown site"
+          - "account suspended"
+          - "site unavailable"
+          - "application not found"
+          - "repository not found"
+          - "service not found"
+          - "not found"
+        condition: or
+
+      - type: status
+        status:
+          - 200
+          - 403
+          - 404
+          - 410
+
+    extractors:
+      - type: dsl
+        dsl:
+          - cname

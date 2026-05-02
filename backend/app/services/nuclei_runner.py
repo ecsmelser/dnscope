@@ -15,12 +15,19 @@ def run_nuclei_scan(target: str) -> Dict:
     """
     nuclei_path = os.getenv("NUCLEI_PATH", "nuclei")
     timeout_seconds = int(os.getenv("NUCLEI_TIMEOUT_SECONDS", "120"))
+    template_dir = os.getenv("DNSCOPE_TEMPLATE_DIR")
 
     command = [
         nuclei_path,
         "-target", target,
-        "-j",
     ]
+
+    # when a template directory is configured, use dnscope's focused template set
+    if template_dir:
+        command.extend(["-t", template_dir])
+
+    # return one json object per finding so dnscope can parse results reliably
+    command.append("-j")
 
     try:
         result = subprocess.run(
@@ -53,12 +60,13 @@ def run_nuclei_scan(target: str) -> Dict:
             "command": command,
         }
 
-
     except subprocess.TimeoutExpired as e:
         return {
             "findings": [],
             "returncode": None,
+            "stdout_preview": "",
             "stderr": e.stderr or f"nuclei timed out after {timeout_seconds} seconds",
+            "stderr_preview": e.stderr or f"nuclei timed out after {timeout_seconds} seconds",
             "timed_out": True,
             "command": command,
         }
@@ -67,7 +75,9 @@ def run_nuclei_scan(target: str) -> Dict:
         return {
             "findings": [],
             "returncode": None,
+            "stdout_preview": "",
             "stderr": str(e),
+            "stderr_preview": str(e),
             "timed_out": False,
             "command": command,
         }

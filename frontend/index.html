@@ -39,14 +39,13 @@
 
       <section class="panel alerts-panel">
         <div class="panel-header">
-            <div>
-                <h2>Open alerts <span id="openAlertCount" class="count-pill">0</span></h2>
-                <p class="panel-subtitle">Findings that need review or remediation.</p>
-            </div>
+          <div>
+            <h2>Open alerts <span id="openAlertCount" class="count-pill">0</span></h2>
+            <p class="panel-subtitle">Findings that need review or remediation.</p>
+          </div>
         </div>
         <div id="openAlerts" class="alert-list"></div>
       </section>
-
 
       <section class="panel">
         <div class="panel-header">
@@ -101,6 +100,30 @@
             <div id="scanDiffDetail" class="detail-block"></div>
           </section>
         </div>
+
+        <section class="schedule-panel">
+          <div class="section-title-row">
+            <div>
+              <h3>Scheduled scans <span id="scheduleStateBadge" class="count-pill">off</span></h3>
+              <p class="section-help">Optionally scan this domain on a recurring interval.</p>
+            </div>
+            <button id="saveScheduleButton" class="secondary-button" type="button">Save schedule</button>
+          </div>
+
+          <div class="schedule-controls">
+            <label class="schedule-toggle">
+              <input id="scheduleEnabledCheckbox" type="checkbox" />
+              enable scheduled scans
+            </label>
+
+            <label class="schedule-field">
+              interval minutes
+              <input id="scheduleIntervalInput" type="number" min="1" value="60" />
+            </label>
+          </div>
+
+          <div id="scheduleStatusDetail" class="schedule-status-grid"></div>
+        </section>
 
         <div class="detail-grid dns-workflow-grid">
           <section class="workflow-section">

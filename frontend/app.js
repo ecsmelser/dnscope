@@ -25,6 +25,13 @@ const els = {
   latestScanDetail: document.querySelector("#latestScanDetail"),
   scanDiffDetail: document.querySelector("#scanDiffDetail"),
   dnsRecordsDetail: document.querySelector("#dnsRecordsDetail"),
+  scheduleStateBadge: document.querySelector("#scheduleStateBadge"),
+  scheduleEnabledCheckbox: document.querySelector("#scheduleEnabledCheckbox"),
+  scheduleIntervalInput: document.querySelector("#scheduleIntervalInput"),
+  saveScheduleButton: document.querySelector("#saveScheduleButton"),
+  scheduleStatusDetail: document.querySelector("#scheduleStatusDetail"),
+  dnsRecordCount: document.querySelector("#dnsRecordCount"),
+  scanCandidateCount: document.querySelector("#scanCandidateCount"),
   scanCandidatesDetail: document.querySelector("#scanCandidatesDetail"),
   scanCandidatesButton: document.querySelector("#scanCandidatesButton"),
   scanHistoryDetail: document.querySelector("#scanHistoryDetail"),
@@ -208,6 +215,8 @@ function renderScanHistory(history) {
 function renderDnsRecords(data) {
   const records = data.records || [];
 
+  els.dnsRecordCount.textContent = records.length;
+
   if (!records.length) {
     els.dnsRecordsDetail.innerHTML = `<p class="empty">no DNS records have been imported for this domain.</p>`;
     return;
@@ -227,9 +236,11 @@ function renderDnsRecords(data) {
     .join("");
 }
 
+
 function renderScanCandidates(data) {
   const candidates = data.candidates || [];
 
+  els.scanCandidateCount.textContent = candidates.length;
   els.scanCandidatesButton.disabled = !candidates.length;
 
   if (!candidates.length) {
@@ -250,6 +261,7 @@ function renderScanCandidates(data) {
     `)
     .join("");
 }
+
 
 
 
@@ -332,6 +344,50 @@ function renderOpenAlerts(summary) {
     `)
     .join("");
 }
+
+function renderSchedule(domain, schedulerStatus) {
+  const domainSchedule = (schedulerStatus.domains || [])
+    .find((item) => item.domain_id === domain.id);
+
+  const enabled = Boolean(domain.scheduled_scans_enabled);
+  const interval = domain.scan_interval_minutes || 60;
+
+  els.scheduleEnabledCheckbox.checked = enabled;
+  els.scheduleIntervalInput.value = interval;
+  els.scheduleStateBadge.textContent = enabled ? "on" : "off";
+  els.scheduleStateBadge.classList.toggle("schedule-on", enabled);
+
+  const lastScan = domainSchedule?.last_scheduled_scan_at
+    ? formatDate(domainSchedule.last_scheduled_scan_at)
+    : "not run yet";
+
+  const nextScan = domainSchedule?.next_scheduled_scan_at
+    ? formatDate(domainSchedule.next_scheduled_scan_at)
+    : enabled ? "due now" : "not scheduled";
+
+  const dueText = domainSchedule?.is_due ? "due now" : "not due";
+
+  els.scheduleStatusDetail.innerHTML = `
+    <div class="schedule-status-item">
+      <span>status</span>
+      <strong>${enabled ? "enabled" : "disabled"}</strong>
+    </div>
+    <div class="schedule-status-item">
+      <span>last scheduled scan</span>
+      <strong>${lastScan}</strong>
+    </div>
+    <div class="schedule-status-item">
+      <span>next scheduled scan</span>
+      <strong>${nextScan}</strong>
+    </div>
+    <div class="schedule-status-item">
+      <span>due state</span>
+      <strong>${enabled ? dueText : "off"}</strong>
+    </div>
+  `;
+}
+
+
 
 
 
@@ -452,13 +508,22 @@ async function loadDomainDetail(domainId, shouldScroll = true) {
   els.formMessage.textContent = "loading domain detail...";
 
   try {
-    const [domain, latestScan, history, diff, dnsRecords, scanCandidates] = await Promise.all([
+    const [
+      domain,
+      latestScan,
+      history,
+      diff,
+      dnsRecords,
+      scanCandidates,
+      schedulerStatus,
+    ] = await Promise.all([
       api(`/domains/${domainId}`),
       api(`/domains/${domainId}/latest-scan`),
       api(`/domains/${domainId}/scan-runs`),
       api(`/domains/${domainId}/scan-diff`),
       api(`/domains/${domainId}/dns-records`),
       api(`/domains/${domainId}/scan-candidates`),
+      api("/scheduler/status"),
     ]);
 
     els.detailTitle.textContent = domain.domain_name;
@@ -466,6 +531,7 @@ async function loadDomainDetail(domainId, shouldScroll = true) {
 
     renderLatestScan(latestScan);
     renderScanDiff(diff);
+    renderSchedule(domain, schedulerStatus);
     renderDnsRecords(dnsRecords);
     renderScanCandidates(scanCandidates);
     renderScanHistory(history);
@@ -479,6 +545,7 @@ async function loadDomainDetail(domainId, shouldScroll = true) {
     els.formMessage.textContent = error.message;
   }
 }
+
 
 async function scanCandidatesForSelectedDomain() {
   if (!selectedDomainId) {
@@ -514,6 +581,40 @@ async function scanCandidatesForSelectedDomain() {
     els.scanCandidatesButton.disabled = false;
   }
 }
+
+
+async function saveScheduleForSelectedDomain() {
+  if (!selectedDomainId) {
+    els.formMessage.textContent = "select a domain first.";
+    return;
+  }
+
+  const interval = Number(els.scheduleIntervalInput.value);
+
+  if (!Number.isInteger(interval) || interval < 1) {
+    els.formMessage.textContent = "schedule interval must be at least 1 minute.";
+    return;
+  }
+
+  els.formMessage.textContent = "saving schedule...";
+
+  try {
+    await api(`/domains/${selectedDomainId}/schedule`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        scheduled_scans_enabled: els.scheduleEnabledCheckbox.checked,
+        scan_interval_minutes: interval,
+      }),
+    });
+
+    els.formMessage.textContent = "schedule saved.";
+    await loadDashboard();
+    await loadDomainDetail(selectedDomainId, false);
+  } catch (error) {
+    els.formMessage.textContent = error.message;
+  }
+}
+
 
 
 
@@ -587,6 +688,8 @@ els.findingSearchInput.addEventListener("input", renderFilteredFindings);
 els.severityFilterSelect.addEventListener("change", renderFilteredFindings);
 els.hideInfoCheckbox.addEventListener("change", renderFilteredFindings);
 els.scanCandidatesButton.addEventListener("click", scanCandidatesForSelectedDomain);
+els.saveScheduleButton.addEventListener("click", saveScheduleForSelectedDomain);
+
 
 
 

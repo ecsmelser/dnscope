@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.db import SessionLocal
 from app.models import DNSRecord, Domain, ScanResult, ScanRun
@@ -69,59 +69,22 @@ def create_domain(domain_data: DomainCreate):
 
 @router.post("/domains/{domain_id}/dns-records/upload")
 def upload_dns_records(domain_id: int, upload: DNSZoneUpload):
-    # parse a cloudflare bind-style dns export and store supported records
-    db = SessionLocal()
+    # parse pasted cloudflare bind-style dns export text and store supported records
+    return store_dns_records_for_domain(domain_id, upload.zone_text)
+
+
+@router.post("/domains/{domain_id}/dns-records/upload-file")
+async def upload_dns_records_file(domain_id: int, dns_file: UploadFile = File(...)):
+    # accept a cloudflare dns export file and store supported records
+    file_bytes = await dns_file.read()
 
     try:
-        domain = db.query(Domain).filter(Domain.id == domain_id).first()
+        zone_text = file_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="dns export must be a utf-8 text file")
 
-        if not domain:
-            raise HTTPException(status_code=404, detail="domain not found")
+    return store_dns_records_for_domain(domain_id, zone_text)
 
-        parsed_records = parse_zone_records(upload.zone_text)
-
-        records_created = 0
-        records_skipped = 0
-
-        for record_data in parsed_records:
-            existing_record = (
-                db.query(DNSRecord)
-                .filter(
-                    DNSRecord.domain_id == domain_id,
-                    DNSRecord.record_type == record_data["record_type"],
-                    DNSRecord.name == record_data["name"],
-                    DNSRecord.value == record_data["value"],
-                )
-                .first()
-            )
-
-            if existing_record:
-                records_skipped += 1
-                continue
-
-            dns_record = DNSRecord(
-                domain_id=domain_id,
-                record_type=record_data["record_type"],
-                name=record_data["name"],
-                value=record_data["value"],
-                ttl=record_data["ttl"],
-            )
-
-            db.add(dns_record)
-            records_created += 1
-
-        db.commit()
-
-        return {
-            "domain_id": domain.id,
-            "domain_name": domain.domain_name,
-            "records_found": len(parsed_records),
-            "records_created": records_created,
-            "records_skipped": records_skipped,
-        }
-
-    finally:
-        db.close()
 
 
 @router.get("/domains/{domain_id}/dns-records")
@@ -1175,6 +1138,63 @@ def serialize_scan_candidate(record):
         "ttl": record.ttl,
         "scan_target": f"https://{record.name}",
     }
+
+
+def store_dns_records_for_domain(domain_id, zone_text):
+    # parse a cloudflare bind-style dns export and store supported records
+    db = SessionLocal()
+
+    try:
+        domain = db.query(Domain).filter(Domain.id == domain_id).first()
+
+        if not domain:
+            raise HTTPException(status_code=404, detail="domain not found")
+
+        parsed_records = parse_zone_records(zone_text)
+
+        records_created = 0
+        records_skipped = 0
+
+        for record_data in parsed_records:
+            existing_record = (
+                db.query(DNSRecord)
+                .filter(
+                    DNSRecord.domain_id == domain_id,
+                    DNSRecord.record_type == record_data["record_type"],
+                    DNSRecord.name == record_data["name"],
+                    DNSRecord.value == record_data["value"],
+                )
+                .first()
+            )
+
+            if existing_record:
+                records_skipped += 1
+                continue
+
+            dns_record = DNSRecord(
+                domain_id=domain_id,
+                record_type=record_data["record_type"],
+                name=record_data["name"],
+                value=record_data["value"],
+                ttl=record_data["ttl"],
+            )
+
+            db.add(dns_record)
+            records_created += 1
+
+        db.commit()
+
+        return {
+            "domain_id": domain.id,
+            "domain_name": domain.domain_name,
+            "records_found": len(parsed_records),
+            "records_created": records_created,
+            "records_skipped": records_skipped,
+        }
+
+    finally:
+        db.close()
+
 
 
 def serialize_schedule_status(domain, now):

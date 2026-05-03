@@ -125,6 +125,18 @@
           <div id="scheduleStatusDetail" class="schedule-status-grid"></div>
         </section>
 
+        <section class="dns-upload-panel">
+          <div class="section-title-row">
+            <div>
+              <h3>Upload DNS records</h3>
+              <p class="section-help">Upload a Cloudflare DNS export file to store records and identify CNAME scan candidates.</p>
+            </div>
+            <button id="uploadDnsRecordsButton" class="secondary-button" type="button">Upload records</button>
+          </div>
+
+          <input id="dnsRecordFileInput" class="dns-file-input" type="file" accept=".txt,.zone,text/plain" />
+        </section>
+
         <div class="detail-grid dns-workflow-grid">
           <section class="workflow-section">
             <div class="section-title-row">

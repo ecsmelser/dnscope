@@ -14,6 +14,8 @@ const els = {
   openAlertCount: document.querySelector("#openAlertCount"),
   openAlerts: document.querySelector("#openAlerts"),
   recentScans: document.querySelector("#recentScans"),
+  dnsRecordFileInput: document.querySelector("#dnsRecordFileInput"),
+  uploadDnsRecordsButton: document.querySelector("#uploadDnsRecordsButton"),
   severityTotals: document.querySelector("#severityTotals"),
   domainForm: document.querySelector("#domainForm"),
   domainInput: document.querySelector("#domainInput"),
@@ -61,6 +63,22 @@ async function api(path, options = {}) {
 
   return data;
 }
+
+async function apiForm(path, formData) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    body: formData,
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.detail || "request failed");
+  }
+
+  return data;
+}
+
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString() : "not available";
@@ -615,6 +633,41 @@ async function saveScheduleForSelectedDomain() {
   }
 }
 
+async function uploadDnsRecordsForSelectedDomain() {
+  if (!selectedDomainId) {
+    els.formMessage.textContent = "select a domain first.";
+    return;
+  }
+
+  const file = els.dnsRecordFileInput.files[0];
+
+  if (!file) {
+    els.formMessage.textContent = "choose a dns export file first.";
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("dns_file", file);
+
+  els.uploadDnsRecordsButton.disabled = true;
+  els.formMessage.textContent = "uploading dns records...";
+
+  try {
+    const result = await apiForm(`/domains/${selectedDomainId}/dns-records/upload-file`, formData);
+
+    els.dnsRecordFileInput.value = "";
+    els.formMessage.textContent = `dns records uploaded: ${result.records_created} created, ${result.records_skipped} skipped.`;
+
+    await loadDashboard();
+    await loadDomainDetail(selectedDomainId, false);
+  } catch (error) {
+    els.formMessage.textContent = error.message;
+  } finally {
+    els.uploadDnsRecordsButton.disabled = false;
+  }
+}
+
+
 
 
 
@@ -689,6 +742,7 @@ els.severityFilterSelect.addEventListener("change", renderFilteredFindings);
 els.hideInfoCheckbox.addEventListener("change", renderFilteredFindings);
 els.scanCandidatesButton.addEventListener("click", scanCandidatesForSelectedDomain);
 els.saveScheduleButton.addEventListener("click", saveScheduleForSelectedDomain);
+els.uploadDnsRecordsButton.addEventListener("click", uploadDnsRecordsForSelectedDomain);
 
 
 

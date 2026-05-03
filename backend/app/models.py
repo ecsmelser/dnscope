@@ -17,7 +17,7 @@ and how many findings were returned.
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -37,6 +37,23 @@ class Domain(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow
     )
+
+    # store whether dnscope should include this domain in scheduled scan checks
+    scheduled_scans_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+
+    # store how often scheduled scans should run for this domain
+    scan_interval_minutes: Mapped[int] = mapped_column(
+        Integer, default=60, nullable=False
+    )
+
+    # store the last time the scheduler ran a scan for this domain
+    last_scheduled_scan_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
+
+
 
     # create a relationship between domain and dnsrecord
     # domain.dns_records returns a list of records belonging to the domain

@@ -155,6 +155,39 @@ def get_dns_records(domain_id: int):
     finally:
         db.close()
 
+@router.get("/domains/{domain_id}/scan-candidates")
+def get_scan_candidates(domain_id: int):
+    # return dns records that should be scanned for takeover-style risk
+    db = SessionLocal()
+
+    try:
+        domain = db.query(Domain).filter(Domain.id == domain_id).first()
+
+        if not domain:
+            raise HTTPException(status_code=404, detail="domain not found")
+
+        cname_records = (
+            db.query(DNSRecord)
+            .filter(
+                DNSRecord.domain_id == domain_id,
+                DNSRecord.record_type == "CNAME",
+            )
+            .order_by(DNSRecord.name)
+            .all()
+        )
+
+        return {
+            "domain_id": domain.id,
+            "domain_name": domain.domain_name,
+            "candidates": [
+                serialize_scan_candidate(record)
+                for record in cname_records
+            ],
+        }
+
+    finally:
+        db.close()
+
 
 
 
@@ -914,4 +947,16 @@ def serialize_dns_record(record):
         "value": record.value,
         "ttl": record.ttl,
         "created_at": record.created_at,
+    }
+
+def serialize_scan_candidate(record):
+    # turn a cname record into a url-level scan target
+    return {
+        "dns_record_id": record.id,
+        "domain_id": record.domain_id,
+        "record_type": record.record_type,
+        "name": record.name,
+        "value": record.value,
+        "ttl": record.ttl,
+        "scan_target": f"https://{record.name}",
     }

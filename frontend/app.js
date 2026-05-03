@@ -21,6 +21,9 @@ const els = {
   detailSubtitle: document.querySelector("#detailSubtitle"),
   latestScanDetail: document.querySelector("#latestScanDetail"),
   scanDiffDetail: document.querySelector("#scanDiffDetail"),
+  dnsRecordsDetail: document.querySelector("#dnsRecordsDetail"),
+  scanCandidatesDetail: document.querySelector("#scanCandidatesDetail"),
+  scanCandidatesButton: document.querySelector("#scanCandidatesButton"),
   scanHistoryDetail: document.querySelector("#scanHistoryDetail"),
   scanDetailPanel: document.querySelector("#scanDetailPanel"),
   scanDetailTitle: document.querySelector("#scanDetailTitle"),
@@ -198,6 +201,54 @@ function renderScanHistory(history) {
   els.scanHistoryDetail.innerHTML = scans.map((scan) => renderScanRow(scan)).join("");
 }
 
+function renderDnsRecords(data) {
+  const records = data.records || [];
+
+  if (!records.length) {
+    els.dnsRecordsDetail.innerHTML = `<p class="empty">no DNS records have been imported for this domain.</p>`;
+    return;
+  }
+
+  els.dnsRecordsDetail.innerHTML = records
+    .map((record) => `
+      <article class="record-row">
+        <div class="record-heading">
+          <span class="record-type">${escapeHtml(record.record_type || "unknown")}</span>
+          <strong>${escapeHtml(record.name || "unknown record")}</strong>
+        </div>
+        <div class="record-value">${escapeHtml(record.value || "no value")}</div>
+        <div class="scan-meta">ttl: ${record.ttl ?? "not available"}</div>
+      </article>
+    `)
+    .join("");
+}
+
+function renderScanCandidates(data) {
+  const candidates = data.candidates || [];
+
+  els.scanCandidatesButton.disabled = !candidates.length;
+
+  if (!candidates.length) {
+    els.scanCandidatesDetail.innerHTML = `<p class="empty">no CNAME records are available as scan candidates.</p>`;
+    return;
+  }
+
+  els.scanCandidatesDetail.innerHTML = candidates
+    .map((candidate) => `
+      <article class="record-row candidate-row">
+        <div class="record-heading">
+          <span class="record-type">${escapeHtml(candidate.record_type || "unknown")}</span>
+          <strong>${escapeHtml(candidate.name || "unknown candidate")}</strong>
+        </div>
+        <div class="record-value">${escapeHtml(candidate.value || "no value")}</div>
+        <div class="scan-meta">scan target: ${escapeHtml(candidate.scan_target || "not available")}</div>
+      </article>
+    `)
+    .join("");
+}
+
+
+
 function renderScanDetail(scanRun) {
   selectedScanRunId = scanRun.id;
 
@@ -321,11 +372,13 @@ async function loadDomainDetail(domainId, shouldScroll = true) {
   els.formMessage.textContent = "loading domain detail...";
 
   try {
-    const [domain, latestScan, history, diff] = await Promise.all([
+    const [domain, latestScan, history, diff, dnsRecords, scanCandidates] = await Promise.all([
       api(`/domains/${domainId}`),
       api(`/domains/${domainId}/latest-scan`),
       api(`/domains/${domainId}/scan-runs`),
       api(`/domains/${domainId}/scan-diff`),
+      api(`/domains/${domainId}/dns-records`),
+      api(`/domains/${domainId}/scan-candidates`),
     ]);
 
     els.detailTitle.textContent = domain.domain_name;
@@ -333,6 +386,8 @@ async function loadDomainDetail(domainId, shouldScroll = true) {
 
     renderLatestScan(latestScan);
     renderScanDiff(diff);
+    renderDnsRecords(dnsRecords);
+    renderScanCandidates(scanCandidates);
     renderScanHistory(history);
 
     els.formMessage.textContent = "";
@@ -344,6 +399,43 @@ async function loadDomainDetail(domainId, shouldScroll = true) {
     els.formMessage.textContent = error.message;
   }
 }
+
+async function scanCandidatesForSelectedDomain() {
+  if (!selectedDomainId) {
+    els.formMessage.textContent = "select a domain first.";
+    return;
+  }
+
+  els.scanCandidatesButton.disabled = true;
+  els.formMessage.textContent = "running candidate scans...";
+
+  try {
+    const result = await api(`/domains/${selectedDomainId}/scan-candidates`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+
+    const createdRuns = result.scan_runs || [];
+    const latestCreatedRun = createdRuns.length ? createdRuns[createdRuns.length - 1].scan_run : null;
+
+    if (latestCreatedRun?.id) {
+      selectedScanRunId = latestCreatedRun.id;
+    }
+
+    await loadDashboard();
+
+    if (selectedScanRunId) {
+      await loadScanDetail(selectedScanRunId, false);
+    }
+
+    els.formMessage.textContent = `candidate scans finished: ${result.scan_runs_created} scans, ${result.findings_saved} findings.`;
+  } catch (error) {
+    els.formMessage.textContent = error.message;
+    els.scanCandidatesButton.disabled = false;
+  }
+}
+
+
 
 async function loadScanDetail(scanRunId, shouldScroll = true) {
   els.formMessage.textContent = "loading scan findings...";
@@ -414,6 +506,8 @@ els.refreshButton.addEventListener("click", loadDashboard);
 els.findingSearchInput.addEventListener("input", renderFilteredFindings);
 els.severityFilterSelect.addEventListener("change", renderFilteredFindings);
 els.hideInfoCheckbox.addEventListener("change", renderFilteredFindings);
+els.scanCandidatesButton.addEventListener("click", scanCandidatesForSelectedDomain);
+
 
 
 document.addEventListener("click", (event) => {

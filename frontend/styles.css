@@ -458,3 +458,62 @@ h2 {
     grid-template-columns: 1fr;
   }
 }
+
+.section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.section-title-row h3 {
+  margin: 0;
+}
+
+.record-list {
+  display: grid;
+  gap: 10px;
+}
+
+.record-row {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfe;
+}
+
+.record-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.record-type {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 0 9px;
+  background: #e7f0ef;
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.record-value {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.candidate-row {
+  background: #fff;
+}
+
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}

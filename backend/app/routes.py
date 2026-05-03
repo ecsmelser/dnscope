@@ -188,6 +188,104 @@ def get_scan_candidates(domain_id: int):
     finally:
         db.close()
 
+@router.post("/domains/{domain_id}/scan-candidates")
+def scan_candidates(domain_id: int):
+    # run nuclei scans against cname-derived scan candidates for one domain
+    db = SessionLocal()
+
+    try:
+        domain = db.query(Domain).filter(Domain.id == domain_id).first()
+
+        if not domain:
+            raise HTTPException(status_code=404, detail="domain not found")
+
+        cname_records = (
+            db.query(DNSRecord)
+            .filter(
+                DNSRecord.domain_id == domain_id,
+                DNSRecord.record_type == "CNAME",
+            )
+            .order_by(DNSRecord.name)
+            .all()
+        )
+
+        scan_runs = []
+        total_findings_saved = 0
+
+        for record in cname_records:
+            scan_target = f"https://{record.name}"
+
+            scan_run = ScanRun(
+                domain_id=domain.id,
+                target=scan_target,
+                scanner="nuclei",
+                status="running",
+            )
+
+            db.add(scan_run)
+            db.commit()
+            db.refresh(scan_run)
+
+            scan_output = run_nuclei_scan(scan_target)
+            nuclei_findings = scan_output["findings"]
+
+            findings_saved = 0
+
+            for finding in nuclei_findings:
+                scan_result = ScanResult(
+                    scan_run_id=scan_run.id,
+                    dns_record_id=record.id,
+                    risk_type=finding.get("template-id", "unknown"),
+                    severity=finding.get("info", {}).get("severity", "unknown"),
+                    validation_source="nuclei",
+                    template_id=finding.get("template-id"),
+                    finding_name=finding.get("info", {}).get("name"),
+                    finding_type=finding.get("type"),
+                    matched_at=finding.get("matched-at"),
+                    matcher_name=finding.get("matcher-name"),
+                    extracted_results=json_safe_dump(finding.get("extracted-results")),
+                    evidence=json_safe_dump(finding),
+                )
+
+                db.add(scan_result)
+                findings_saved += 1
+
+            if scan_output["timed_out"] or scan_output["returncode"] not in (0,):
+                scan_run.status = "failed"
+                scan_run.error_message = scan_output["stderr"] or "nuclei scan failed"
+            else:
+                scan_run.status = "completed"
+                scan_run.error_message = None
+
+            scan_run.findings_count = findings_saved
+            scan_run.completed_at = datetime.utcnow()
+
+            db.commit()
+
+            total_findings_saved += findings_saved
+
+            scan_runs.append({
+                "dns_record": serialize_dns_record(record),
+                "scan_candidate": serialize_scan_candidate(record),
+                "scan_run": serialize_scan_run(scan_run),
+                "findings_saved": findings_saved,
+                "scanner_returncode": scan_output["returncode"],
+                "scanner_error": scan_run.error_message,
+            })
+
+        return {
+            "domain_id": domain.id,
+            "domain_name": domain.domain_name,
+            "candidates_scanned": len(cname_records),
+            "scan_runs_created": len(scan_runs),
+            "findings_saved": total_findings_saved,
+            "scan_runs": scan_runs,
+        }
+
+    finally:
+        db.close()
+
+
 
 
 

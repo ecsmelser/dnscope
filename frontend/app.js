@@ -3,6 +3,8 @@ const API_BASE = "http://127.0.0.1:8000";
 let selectedDomainId = null;
 let selectedScanRunId = null;
 let currentScanFindings = [];
+let scanHistoryExpanded = false;
+
 
 
 const els = {
@@ -227,8 +229,26 @@ function renderScanHistory(history) {
     return;
   }
 
-  els.scanHistoryDetail.innerHTML = scans.map((scan) => renderScanRow(scan)).join("");
+  const visibleScans = scanHistoryExpanded ? scans : scans.slice(0, 2);
+  const hiddenCount = scans.length - visibleScans.length;
+  const toggleLabel = scanHistoryExpanded
+    ? "Show fewer scans"
+    : `Show ${hiddenCount} more scans`;
+
+  const toggleButton = scans.length > 2
+    ? `
+      <button class="secondary-button scan-history-toggle" data-toggle-scan-history="true">
+        ${toggleLabel}
+      </button>
+    `
+    : "";
+
+  els.scanHistoryDetail.innerHTML = `
+    ${visibleScans.map((scan) => renderScanRow(scan)).join("")}
+    ${toggleButton}
+  `;
 }
+
 
 function renderDnsRecords(data) {
   const records = data.records || [];
@@ -751,6 +771,18 @@ document.addEventListener("click", (event) => {
   const scanButton = event.target.closest("[data-scan-domain-id]");
   const viewDomainButton = event.target.closest("[data-view-domain-id]");
   const viewScanButton = event.target.closest("[data-view-scan-id]");
+  const toggleScanHistoryButton = event.target.closest("[data-toggle-scan-history]");
+
+  if (toggleScanHistoryButton) {
+  scanHistoryExpanded = !scanHistoryExpanded;
+
+  if (selectedDomainId) {
+    loadDomainDetail(selectedDomainId, false);
+  }
+
+  return;
+}
+
 
   if (scanButton) {
     scanDomain(scanButton.dataset.scanDomainId);

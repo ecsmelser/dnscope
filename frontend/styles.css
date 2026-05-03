@@ -752,3 +752,7 @@ h2 {
   background: #fff;
   color: var(--text);
 }
+
+.scan-history-toggle {
+  justify-self: start;
+}

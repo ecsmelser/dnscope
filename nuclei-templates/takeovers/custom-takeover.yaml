@@ -1,7 +1,7 @@
 id: custom-takeover
 
 info:
-  name: Custom Takeover
+  name: General Subdomain Takeover
   author: ethan
   severity: medium
   description: flags a url for review when it appears to return disconnected, unclaimed, or missing service language

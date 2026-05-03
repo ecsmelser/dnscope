@@ -18,25 +18,24 @@
         </button>
       </section>
 
-    <section class="summary-grid" aria-label="dashboard summary">
+      <section class="summary-grid" aria-label="dashboard summary">
         <article class="metric">
-            <span class="metric-label">domains</span>
-            <strong id="totalDomains">0</strong>
+          <span class="metric-label">domains</span>
+          <strong id="totalDomains">0</strong>
         </article>
         <article class="metric">
-            <span class="metric-label">scan runs</span>
-            <strong id="totalScanRuns">0</strong>
+          <span class="metric-label">scan runs</span>
+          <strong id="totalScanRuns">0</strong>
         </article>
         <article class="metric metric-danger">
-            <span class="metric-label">failed scans</span>
-            <strong id="totalFailedScans">0</strong>
+          <span class="metric-label">failed scans</span>
+          <strong id="totalFailedScans">0</strong>
         </article>
         <article class="metric">
-            <span class="metric-label">findings</span>
-            <strong id="totalFindings">0</strong>
+          <span class="metric-label">findings</span>
+          <strong id="totalFindings">0</strong>
         </article>
-    </section>
-
+      </section>
 
       <section class="panel">
         <div class="panel-header">
@@ -91,22 +90,29 @@
             <div id="scanDiffDetail" class="detail-block"></div>
           </section>
         </div>
-        
-        <div class="detail-grid">
-            <section>
-                <h3>DNS records</h3>
-                <div id="dnsRecordsDetail" class="record-list"></div>
-            </section>
 
-            <section>
-                <div class="section-title-row">
-                    <h3>Scan candidates</h3>
-                    <button id="scanCandidatesButton" class="secondary-button" type="button">Scan candidates</button>
-                </div>
-                <div id="scanCandidatesDetail" class="record-list"></div>
-            </section>
+        <div class="detail-grid dns-workflow-grid">
+          <section class="workflow-section">
+            <div class="section-title-row">
+              <div>
+                <h3>DNS records <span id="dnsRecordCount" class="count-pill">0</span></h3>
+                <p class="section-help">Imported records from the domain DNS export.</p>
+              </div>
+            </div>
+            <div id="dnsRecordsDetail" class="record-list compact-record-list"></div>
+          </section>
+
+          <section class="workflow-section">
+            <div class="section-title-row">
+              <div>
+                <h3>Scan candidates <span id="scanCandidateCount" class="count-pill">0</span></h3>
+                <p class="section-help">CNAME records selected for takeover-focused scanning.</p>
+              </div>
+              <button id="scanCandidatesButton" class="secondary-button" type="button">Scan CNAME candidates</button>
+            </div>
+            <div id="scanCandidatesDetail" class="record-list compact-record-list"></div>
+          </section>
         </div>
-
 
         <section>
           <h3>Scan history</h3>
@@ -123,23 +129,21 @@
         </div>
 
         <div class="filter-bar">
-            <input id="findingSearchInput" type="text" placeholder="search findings" autocomplete="off" />
-            <select id="severityFilterSelect" aria-label="filter findings by severity">
-                <option value="all">all severities</option>
-                <option value="info">info</option>
-                <option value="low">low</option>
-                <option value="medium">medium</option>
-                <option value="high">high</option>
-                <option value="critical">critical</option>
-                <option value="unknown">unknown</option>
-            </select>
-            <label class="checkbox-filter">
-                <input id="hideInfoCheckbox" type="checkbox" />
-                hide info
-            </label>
+          <input id="findingSearchInput" type="text" placeholder="search findings" autocomplete="off" />
+          <select id="severityFilterSelect" aria-label="filter findings by severity">
+            <option value="all">all severities</option>
+            <option value="info">info</option>
+            <option value="low">low</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
+            <option value="critical">critical</option>
+            <option value="unknown">unknown</option>
+          </select>
+          <label class="checkbox-filter">
+            <input id="hideInfoCheckbox" type="checkbox" />
+            hide info
+          </label>
         </div>
-
-
 
         <div id="scanFindingList" class="finding-list"></div>
       </section>

@@ -550,3 +550,65 @@ h2 {
   line-height: 1.45;
 }
 
+.dns-workflow-grid {
+  align-items: start;
+}
+
+.workflow-section {
+  min-width: 0;
+}
+
+.section-title-row {
+  align-items: flex-start;
+}
+
+.section-help {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 22px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: #e7f0ef;
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.compact-record-list {
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.candidate-row {
+  border-color: #99d6cf;
+  background: #f7fffd;
+}
+
+.candidate-row .record-type {
+  background: #d1faf4;
+}
+
+@media (max-width: 760px) {
+  .section-title-row {
+    display: grid;
+    gap: 10px;
+  }
+
+  .section-title-row .secondary-button {
+    width: 100%;
+  }
+
+  .compact-record-list {
+    max-height: none;
+  }
+}

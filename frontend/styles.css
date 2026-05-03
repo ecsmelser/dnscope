@@ -612,3 +612,40 @@ h2 {
     max-height: none;
   }
 }
+
+.alerts-panel {
+  border-color: #f59e0b;
+}
+
+.alert-list {
+  display: grid;
+  gap: 10px;
+}
+
+.alert-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fffbeb;
+}
+
+.alert-title {
+  font-weight: 700;
+}
+
+.alert-guidance {
+  margin-top: 8px;
+  color: #7c2d12;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+@media (max-width: 760px) {
+  .alert-row {
+    grid-template-columns: 1fr;
+  }
+}

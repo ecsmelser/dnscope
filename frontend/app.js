@@ -11,6 +11,8 @@ const els = {
   totalFailedScans: document.querySelector("#totalFailedScans"),
   totalFindings: document.querySelector("#totalFindings"),
   domainList: document.querySelector("#domainList"),
+  openAlertCount: document.querySelector("#openAlertCount"),
+  openAlerts: document.querySelector("#openAlerts"),
   recentScans: document.querySelector("#recentScans"),
   severityTotals: document.querySelector("#severityTotals"),
   domainForm: document.querySelector("#domainForm"),
@@ -301,6 +303,38 @@ function renderFilteredFindings() {
     .join("");
 }
 
+function renderOpenAlerts(summary) {
+  const alerts = summary.open_alerts || [];
+  const alertCount = summary.open_alert_count ?? alerts.length;
+
+  els.openAlertCount.textContent = alertCount;
+
+  if (!alerts.length) {
+    els.openAlerts.innerHTML = `<p class="empty">no open alerts right now.</p>`;
+    return;
+  }
+
+  els.openAlerts.innerHTML = alerts
+    .map((alert) => `
+      <article class="alert-row">
+        <div>
+          <div class="alert-title">${escapeHtml(alert.finding_name || "open alert")}</div>
+          <div class="scan-meta">${escapeHtml(alert.severity || "unknown")} - ${escapeHtml(alert.target || "unknown target")}</div>
+          <div class="alert-guidance">
+            Review this DNS entry and confirm the connected service is still active, owned, and intentionally configured.
+          </div>
+        </div>
+        <div class="domain-actions">
+          <button class="secondary-button" data-view-domain-id="${alert.domain_id}">View domain</button>
+          <button class="secondary-button" data-view-scan-id="${alert.scan_run_id}">View finding</button>
+        </div>
+      </article>
+    `)
+    .join("");
+}
+
+
+
 function isTakeoverFinding(finding) {
   const takeoverText = [
     finding.finding_name,
@@ -395,6 +429,7 @@ async function loadDashboard() {
 
     renderTotals(summary);
     renderSeverityTotals(summary);
+    renderOpenAlerts(summary);
     renderDomains(summary);
     renderRecentScans(summary);
 

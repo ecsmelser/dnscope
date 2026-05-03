@@ -8,8 +8,6 @@ from app.services.nuclei_runner import run_nuclei_scan
 from app.schemas import DNSZoneUpload, DomainCreate
 
 
-
-
 router = APIRouter()
 
 
@@ -67,6 +65,7 @@ def create_domain(domain_data: DomainCreate):
 
     finally:
         db.close()
+
 
 @router.post("/domains/{domain_id}/dns-records/upload")
 def upload_dns_records(domain_id: int, upload: DNSZoneUpload):
@@ -155,6 +154,7 @@ def get_dns_records(domain_id: int):
     finally:
         db.close()
 
+
 @router.get("/domains/{domain_id}/scan-candidates")
 def get_scan_candidates(domain_id: int):
     # return dns records that should be scanned for takeover-style risk
@@ -187,6 +187,7 @@ def get_scan_candidates(domain_id: int):
 
     finally:
         db.close()
+
 
 @router.post("/domains/{domain_id}/scan-candidates")
 def scan_candidates(domain_id: int):
@@ -286,9 +287,6 @@ def scan_candidates(domain_id: int):
         db.close()
 
 
-
-
-
 @router.get("/domains/{domain_id}")
 def get_domain(domain_id: int):
     # return one domain plus its latest scan summary
@@ -314,7 +312,6 @@ def get_domain(domain_id: int):
 
     finally:
         db.close()
-
 
 
 @router.post("/seed")
@@ -445,7 +442,6 @@ def scan_domain(domain_id: int):
                 evidence=json_safe_dump(finding),
             )
 
-
             db.add(scan_result)
             findings_saved += 1
 
@@ -459,7 +455,6 @@ def scan_domain(domain_id: int):
 
         scan_run.findings_count = findings_saved
         scan_run.completed_at = datetime.utcnow()
-
 
         # commit the scan results and final scan run state together
         db.commit()
@@ -485,8 +480,6 @@ def scan_domain(domain_id: int):
         # always close the db session
         db.close()
 
-
-# test get to see results
 
 @router.get("/scan-results")
 def get_scan_results():
@@ -591,14 +584,12 @@ def get_scan_run(scan_run_id: int):
                     "matched_at": result.matched_at,
                     "matcher_name": result.matcher_name,
                     "extracted_results": result.extracted_results,
-
                 }
                 for result in scan_run.scan_results
             ],
         }
 
     finally:
-        # always close the db session
         db.close()
 
 
@@ -641,7 +632,6 @@ def get_domain_scan_runs(domain_id: int):
         }
 
     finally:
-        # always close the db session
         db.close()
 
 
@@ -703,20 +693,11 @@ def get_latest_domain_scan(domain_id: int):
         return {
             "domain_id": domain.id,
             "domain_name": domain.domain_name,
-            "latest_scan": {
-                "id": latest_scan.id,
-                "target": latest_scan.target,
-                "scanner": latest_scan.scanner,
-                "status": latest_scan.status,
-                "findings_count": latest_scan.findings_count,
-                "started_at": latest_scan.started_at,
-                "completed_at": latest_scan.completed_at,
-            },
+            "latest_scan": serialize_scan_run(latest_scan),
             "severity_counts": severity_counts,
         }
 
     finally:
-        # always close the db session
         db.close()
 
 
@@ -808,7 +789,6 @@ def get_domain_scan_diff(domain_id: int):
         }
 
     finally:
-        # always close the db session
         db.close()
 
 
@@ -831,6 +811,22 @@ def get_dashboard_summary():
         }
 
         latest_scans = []
+
+        open_alert_results = []
+        seen_alert_keys = set()
+
+        for result in db.query(ScanResult).order_by(ScanResult.detected_at.desc()).all():
+            if not is_open_alert(result):
+                continue
+
+            alert_key = open_alert_identity(result)
+
+            if alert_key in seen_alert_keys:
+                continue
+
+            seen_alert_keys.add(alert_key)
+            open_alert_results.append(result)
+
 
         for domain in domains:
             latest_scan = (
@@ -861,8 +857,12 @@ def get_dashboard_summary():
                 "failed_scan_runs": db.query(ScanRun).filter(ScanRun.status == "failed").count(),
                 "findings": db.query(ScanResult).count(),
             },
-
             "severity_totals": severity_totals,
+            "open_alert_count": len(open_alert_results),
+            "open_alerts": [
+                serialize_open_alert(db, result)
+                for result in open_alert_results[:5]
+            ],
             "latest_scans": latest_scans,
             "recent_scan_runs": [
                 serialize_scan_run(scan_run)
@@ -872,8 +872,6 @@ def get_dashboard_summary():
 
     finally:
         db.close()
-
-
 
 
 def json_safe_dump(data):
@@ -939,6 +937,65 @@ def serialize_scan_result(result):
         "matcher_name": result.matcher_name,
         "extracted_results": result.extracted_results,
         "evidence": result.evidence,
+        "detected_at": result.detected_at,
+    }
+
+
+def is_open_alert(result):
+    # treat takeover-style findings as open alerts until a review workflow exists
+    alert_text = " ".join([
+        result.finding_name or "",
+        result.template_id or "",
+        result.risk_type or "",
+        result.matched_at or "",
+        result.finding_type or "",
+        result.matcher_name or "",
+        result.evidence or "",
+    ]).lower()
+
+    alert_keywords = [
+        "takeover",
+        "unclaimed",
+        "dangling",
+        "github",
+        "pages",
+        "cname",
+        "service disconnect",
+    ]
+
+    return any(keyword in alert_text for keyword in alert_keywords)
+
+def open_alert_identity(result):
+    # keep one alert per issue type on each dns record or target
+    issue = result.template_id or result.risk_type or result.finding_name or "unknown"
+
+    if result.dns_record_id:
+        return f"dns-record::{result.dns_record_id}::issue::{issue}"
+
+    target = result.matched_at or "unknown"
+
+    if target != "unknown":
+        return f"target::{target}::issue::{issue}"
+
+    return f"scan-result::{result.id}"
+
+
+
+def serialize_open_alert(db, result):
+    # return enough context for the dashboard to point users toward the issue
+    scan_run = db.query(ScanRun).filter(ScanRun.id == result.scan_run_id).first()
+    domain = db.query(Domain).filter(Domain.id == scan_run.domain_id).first() if scan_run else None
+    target = result.matched_at or (scan_run.target if scan_run else "unknown target")
+
+    return {
+        "id": result.id,
+        "domain_id": domain.id if domain else None,
+        "domain_name": domain.domain_name if domain else "unknown domain",
+        "scan_run_id": result.scan_run_id,
+        "target": target,
+        "severity": result.severity or "unknown",
+        "finding_name": result.finding_name or result.template_id or result.risk_type or "unknown finding",
+        "template_id": result.template_id,
         "detected_at": result.detected_at,
     }
 
@@ -1048,6 +1105,7 @@ def serialize_dns_record(record):
         "ttl": record.ttl,
         "created_at": record.created_at,
     }
+
 
 def serialize_scan_candidate(record):
     # turn a cname record into a url-level scan target

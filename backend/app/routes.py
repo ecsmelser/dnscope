@@ -362,78 +362,8 @@ def get_scheduler_status():
 
 @router.post("/scheduler/run-due-scans")
 def run_due_scheduled_scans():
-    # run scans for domains whose schedule is enabled and currently due
-    db = SessionLocal()
-
-    try:
-        now = datetime.utcnow()
-        domains = (
-            db.query(Domain)
-            .filter(Domain.scheduled_scans_enabled == True)
-            .order_by(Domain.domain_name)
-            .all()
-        )
-
-        scanned_domains = []
-        skipped_domains = []
-
-        for domain in domains:
-            if not domain_is_due_for_scan(domain, now):
-                skipped_domains.append(serialize_schedule_status(domain, now))
-                continue
-
-            cname_records = (
-                db.query(DNSRecord)
-                .filter(
-                    DNSRecord.domain_id == domain.id,
-                    DNSRecord.record_type == "CNAME",
-                )
-                .order_by(DNSRecord.name)
-                .all()
-            )
-
-            scan_results = []
-
-            if cname_records:
-                for record in cname_records:
-                    scan_results.append(
-                        run_scheduled_scan_target(
-                            db=db,
-                            domain=domain,
-                            target=f"https://{record.name}",
-                            dns_record=record,
-                        )
-                    )
-            else:
-                scan_results.append(
-                    run_scheduled_scan_target(
-                        db=db,
-                        domain=domain,
-                        target=f"https://{domain.domain_name}",
-                        dns_record=None,
-                    )
-                )
-
-            domain.last_scheduled_scan_at = now
-            db.commit()
-            db.refresh(domain)
-
-            scanned_domains.append({
-                "domain": serialize_domain(domain),
-                "scan_results": scan_results,
-            })
-
-        return {
-            "checked_at": now,
-            "domains_scanned": len(scanned_domains),
-            "domains_skipped": len(skipped_domains),
-            "scanned_domains": scanned_domains,
-            "skipped_domains": skipped_domains,
-        }
-
-    finally:
-        db.close()
-
+    # manually trigger the same due-scan job used by the background scheduler
+    return run_due_scheduled_scans_job()
 
 
 
@@ -1341,3 +1271,76 @@ def run_scheduled_scan_target(db, domain, target, dns_record=None):
         "scanner_error": scan_run.error_message,
     }
 
+
+def run_due_scheduled_scans_job():
+    # run scans for domains whose schedule is enabled and currently due
+    db = SessionLocal()
+
+    try:
+        now = datetime.utcnow()
+        domains = (
+            db.query(Domain)
+            .filter(Domain.scheduled_scans_enabled == True)
+            .order_by(Domain.domain_name)
+            .all()
+        )
+
+        scanned_domains = []
+        skipped_domains = []
+
+        for domain in domains:
+            if not domain_is_due_for_scan(domain, now):
+                skipped_domains.append(serialize_schedule_status(domain, now))
+                continue
+
+            cname_records = (
+                db.query(DNSRecord)
+                .filter(
+                    DNSRecord.domain_id == domain.id,
+                    DNSRecord.record_type == "CNAME",
+                )
+                .order_by(DNSRecord.name)
+                .all()
+            )
+
+            scan_results = []
+
+            if cname_records:
+                for record in cname_records:
+                    scan_results.append(
+                        run_scheduled_scan_target(
+                            db=db,
+                            domain=domain,
+                            target=f"https://{record.name}",
+                            dns_record=record,
+                        )
+                    )
+            else:
+                scan_results.append(
+                    run_scheduled_scan_target(
+                        db=db,
+                        domain=domain,
+                        target=f"https://{domain.domain_name}",
+                        dns_record=None,
+                    )
+                )
+
+            domain.last_scheduled_scan_at = now
+            db.commit()
+            db.refresh(domain)
+
+            scanned_domains.append({
+                "domain": serialize_domain(domain),
+                "scan_results": scan_results,
+            })
+
+        return {
+            "checked_at": now,
+            "domains_scanned": len(scanned_domains),
+            "domains_skipped": len(skipped_domains),
+            "scanned_domains": scanned_domains,
+            "skipped_domains": skipped_domains,
+        }
+
+    finally:
+        db.close()

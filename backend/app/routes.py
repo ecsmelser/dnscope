@@ -5,7 +5,8 @@ from fastapi import APIRouter, HTTPException
 from app.db import SessionLocal
 from app.models import DNSRecord, Domain, ScanResult, ScanRun
 from app.services.nuclei_runner import run_nuclei_scan
-from app.schemas import DomainCreate
+from app.schemas import DNSZoneUpload, DomainCreate
+
 
 
 
@@ -66,6 +67,95 @@ def create_domain(domain_data: DomainCreate):
 
     finally:
         db.close()
+
+@router.post("/domains/{domain_id}/dns-records/upload")
+def upload_dns_records(domain_id: int, upload: DNSZoneUpload):
+    # parse a cloudflare bind-style dns export and store supported records
+    db = SessionLocal()
+
+    try:
+        domain = db.query(Domain).filter(Domain.id == domain_id).first()
+
+        if not domain:
+            raise HTTPException(status_code=404, detail="domain not found")
+
+        parsed_records = parse_zone_records(upload.zone_text)
+
+        records_created = 0
+        records_skipped = 0
+
+        for record_data in parsed_records:
+            existing_record = (
+                db.query(DNSRecord)
+                .filter(
+                    DNSRecord.domain_id == domain_id,
+                    DNSRecord.record_type == record_data["record_type"],
+                    DNSRecord.name == record_data["name"],
+                    DNSRecord.value == record_data["value"],
+                )
+                .first()
+            )
+
+            if existing_record:
+                records_skipped += 1
+                continue
+
+            dns_record = DNSRecord(
+                domain_id=domain_id,
+                record_type=record_data["record_type"],
+                name=record_data["name"],
+                value=record_data["value"],
+                ttl=record_data["ttl"],
+            )
+
+            db.add(dns_record)
+            records_created += 1
+
+        db.commit()
+
+        return {
+            "domain_id": domain.id,
+            "domain_name": domain.domain_name,
+            "records_found": len(parsed_records),
+            "records_created": records_created,
+            "records_skipped": records_skipped,
+        }
+
+    finally:
+        db.close()
+
+
+@router.get("/domains/{domain_id}/dns-records")
+def get_dns_records(domain_id: int):
+    # return dns records imported for one domain
+    db = SessionLocal()
+
+    try:
+        domain = db.query(Domain).filter(Domain.id == domain_id).first()
+
+        if not domain:
+            raise HTTPException(status_code=404, detail="domain not found")
+
+        records = (
+            db.query(DNSRecord)
+            .filter(DNSRecord.domain_id == domain_id)
+            .order_by(DNSRecord.record_type, DNSRecord.name)
+            .all()
+        )
+
+        return {
+            "domain_id": domain.id,
+            "domain_name": domain.domain_name,
+            "records": [
+                serialize_dns_record(record)
+                for record in records
+            ],
+        }
+
+    finally:
+        db.close()
+
+
 
 
 @router.get("/domains/{domain_id}")
@@ -750,4 +840,78 @@ def serialize_scan_run(scan_run):
         "findings_count": scan_run.findings_count,
         "started_at": scan_run.started_at,
         "completed_at": scan_run.completed_at,
+    }
+
+
+def parse_zone_records(zone_text):
+    # parse useful records from a cloudflare bind-style zone export
+    supported_record_types = {"A", "AAAA", "CNAME", "TXT", "MX"}
+    parsed_records = []
+
+    for raw_line in zone_text.splitlines():
+        line = raw_line.strip()
+
+        if not line or line.startswith(";"):
+            continue
+
+        # remove inline cloudflare comments such as cf_tags
+        record_part = line.split(";", 1)[0].strip()
+        parts = record_part.split()
+
+        if len(parts) < 5:
+            continue
+
+        name = clean_dns_name(parts[0])
+        ttl = parse_ttl(parts[1])
+        dns_class = parts[2].upper()
+        record_type = parts[3].upper()
+        value = " ".join(parts[4:])
+
+        if dns_class != "IN":
+            continue
+
+        if record_type not in supported_record_types:
+            continue
+
+        parsed_records.append({
+            "name": name,
+            "ttl": ttl,
+            "record_type": record_type,
+            "value": clean_dns_value(value, record_type),
+        })
+
+    return parsed_records
+
+
+def parse_ttl(value):
+    # safely parse ttl values from dns zone exports
+    try:
+        return int(value)
+    except ValueError:
+        return 0
+
+
+def clean_dns_name(value):
+    # remove trailing zone-file dot for display and matching
+    return value.rstrip(".").lower()
+
+
+def clean_dns_value(value, record_type):
+    # normalize dns values while preserving txt record content
+    if record_type == "TXT":
+        return value.strip()
+
+    return value.rstrip(".").lower()
+
+
+def serialize_dns_record(record):
+    # return a consistent dns record response shape
+    return {
+        "id": record.id,
+        "domain_id": record.domain_id,
+        "record_type": record.record_type,
+        "name": record.name,
+        "value": record.value,
+        "ttl": record.ttl,
+        "created_at": record.created_at,
     }

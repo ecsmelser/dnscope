@@ -8,6 +8,7 @@ let currentScanFindings = [];
 const els = {
   totalDomains: document.querySelector("#totalDomains"),
   totalScanRuns: document.querySelector("#totalScanRuns"),
+  totalFailedScans: document.querySelector("#totalFailedScans"),
   totalFindings: document.querySelector("#totalFindings"),
   domainList: document.querySelector("#domainList"),
   recentScans: document.querySelector("#recentScans"),
@@ -63,6 +64,7 @@ function statusClass(status) {
 function renderTotals(summary) {
   els.totalDomains.textContent = summary.totals?.domains ?? 0;
   els.totalScanRuns.textContent = summary.totals?.scan_runs ?? 0;
+  els.totalFailedScans.textContent = summary.totals?.failed_scan_runs ?? 0;
   els.totalFindings.textContent = summary.totals?.findings ?? 0;
 }
 
@@ -299,6 +301,33 @@ function renderFilteredFindings() {
     .join("");
 }
 
+function isTakeoverFinding(finding) {
+  const takeoverText = [
+    finding.finding_name,
+    finding.template_id,
+    finding.risk_type,
+    finding.matched_at,
+    finding.finding_type,
+    finding.matcher_name,
+    finding.evidence,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return [
+    "takeover",
+    "unclaimed",
+    "dangling",
+    "github",
+    "pages",
+    "cname",
+    "service disconnect",
+    "not found",
+  ].some((keyword) => takeoverText.includes(keyword));
+}
+
+
 function findingMatchesSearch(finding, searchText) {
   const searchableText = [
     finding.finding_name,
@@ -318,15 +347,30 @@ function findingMatchesSearch(finding, searchText) {
 function renderFindingRow(finding) {
   const title = finding.finding_name || finding.template_id || finding.risk_type || "unknown finding";
   const target = finding.matched_at || "unknown target";
+  const takeoverFinding = isTakeoverFinding(finding);
+  const reviewBadge = takeoverFinding
+    ? `<span class="review-badge">review takeover risk</span>`
+    : "";
+
+  const guidanceHtml = takeoverFinding
+    ? `
+      <div class="finding-guidance">
+        Review the related DNS record and confirm the service at this URL is still owned, active, and intentionally connected. If the service is no longer in use, remove or update the DNS record before someone else can claim the target.
+      </div>
+    `
+    : "";
+
 
   return `
-    <article class="finding-row">
-      <div class="finding-row-title">${title}</div>
-      <div class="scan-meta">${finding.severity} - ${target}</div>
+    <article class="finding-row${takeoverFinding ? " takeover-finding" : ""}">
+      <div class="finding-row-title">${escapeHtml(title)}</div>
+      <div class="scan-meta">${escapeHtml(finding.severity || "unknown")} - ${escapeHtml(target)}</div>
       <div class="badge-row">
-        <span class="badge">${finding.template_id || finding.risk_type || "unknown"}</span>
-        <span class="badge">${finding.finding_type || "unknown type"}</span>
+        ${reviewBadge}
+        <span class="badge">${escapeHtml(finding.template_id || finding.risk_type || "unknown")}</span>
+        <span class="badge">${escapeHtml(finding.finding_type || "unknown type")}</span>
       </div>
+      ${guidanceHtml}
       <details class="evidence">
         <summary>raw evidence</summary>
         <pre>${escapeHtml(finding.evidence || "")}</pre>
@@ -334,6 +378,7 @@ function renderFindingRow(finding) {
     </article>
   `;
 }
+
 
 function escapeHtml(value) {
   return String(value)

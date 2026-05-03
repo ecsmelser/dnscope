@@ -858,8 +858,10 @@ def get_dashboard_summary():
             "totals": {
                 "domains": db.query(Domain).count(),
                 "scan_runs": db.query(ScanRun).count(),
+                "failed_scan_runs": db.query(ScanRun).filter(ScanRun.status == "failed").count(),
                 "findings": db.query(ScanResult).count(),
             },
+
             "severity_totals": severity_totals,
             "latest_scans": latest_scans,
             "recent_scan_runs": [
